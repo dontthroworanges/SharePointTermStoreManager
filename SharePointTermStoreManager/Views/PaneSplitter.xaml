@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="SharePointTermStoreManager.Views.PaneSplitter"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.HelpText="Drag, or use the Left and Right arrow keys, to resize. Double-click to reset."
+    AutomationProperties.Name="Resize the term tree"
+    IsTabStop="True"
+    UseSystemFocusVisuals="True">
+
+    <!-- The whole gap between the panes is the drag area; a short grip line shows on hover, drag and focus. -->
+    <Grid x:Name="Root" Background="Transparent">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="GripStates">
+                <VisualState x:Name="Idle" />
+                <VisualState x:Name="Active">
+                    <VisualState.Setters>
+                        <Setter Target="Grip.Opacity" Value="1" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <Rectangle
+            x:Name="Grip"
+            Width="4"
+            Height="40"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Fill="{ThemeResource ControlStrongFillColorDefaultBrush}"
+            Opacity="0"
+            RadiusX="2"
+            RadiusY="2" />
+    </Grid>
+</UserControl>

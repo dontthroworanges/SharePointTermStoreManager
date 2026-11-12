@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="SharePointTermStoreManager.Views.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:h="using:SharePointTermStoreManager.Helpers"
+    xmlns:views="using:SharePointTermStoreManager.Views">
+
+    <UserControl.Resources>
+        <Style x:Key="GroupHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+            <Setter Property="Margin" Value="1,20,0,6" />
+        </Style>
+        <Style x:Key="CardStackStyle" TargetType="StackPanel">
+            <Setter Property="Spacing" Value="4" />
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Windows 11 Settings layout, as in SharePoint Search Explorer: categories on the left, the selected
+         category's settings on the right. -->
+    <NavigationView
+        x:Name="CategoryNav"
+        IsBackButtonVisible="Collapsed"
+        IsPaneToggleButtonVisible="False"
+        IsSettingsVisible="False"
+        IsTitleBarAutoPaddingEnabled="False"
+        OpenPaneLength="280"
+        PaneDisplayMode="Left"
+        SelectionChanged="CategoryNav_SelectionChanged">
+
+        <NavigationView.PaneHeader>
+            <Grid Margin="16,12,16,12" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <PersonPicture x:Name="ProfilePicture" Width="56" Height="56" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="ProfileNameText" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        x:Name="ProfileAccountText"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
+        </NavigationView.PaneHeader>
+
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="Connections" Icon="{h:FluentIcon Icon=PersonKey}" Tag="Connections" />
+            <NavigationViewItem Content="Options" Icon="{h:FluentIcon Icon=Settings}" Tag="Options" />
+            <NavigationViewItem Content="Appearance" Icon="{h:FluentIcon Icon=PaintBrush}" Tag="Appearance" />
+            <NavigationViewItem Content="About" Icon="{h:FluentIcon Icon=Info}" Tag="About" />
+        </NavigationView.MenuItems>
+
+        <!-- Centred column, like Windows 11 Settings; width and left margin are set from the viewport in code. -->
+        <ScrollViewer
+            x:Name="ContentScroller"
+            HorizontalScrollBarVisibility="Disabled"
+            HorizontalScrollMode="Disabled"
+            SizeChanged="ContentScroller_SizeChanged">
+            <StackPanel x:Name="ContentPanel" Padding="36,20,36,40" HorizontalAlignment="Left">
+                <TextBlock x:Name="CategoryTitle" Margin="0,0,0,8" Style="{StaticResource TitleTextBlockStyle}" />
+
+                <!-- ===== Connections ===== -->
+                <StackPanel x:Name="ConnectionsPanel" Style="{StaticResource CardStackStyle}">
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Current profile" />
+                    <views:SettingsCard x:Name="CurrentProfileCard" Icon="City">
+                        <views:SettingsCard.Action>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="SignOutButton" Click="SignOut_Click" Content="Sign out" />
+                                <Button x:Name="EditProfileButton" Click="EditProfile_Click" Content="Edit profile" />
+                            </StackPanel>
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                    <views:SettingsCard
+                        Description="Switch between profiles, sign out or remove a profile from the profile button at the bottom of the navigation pane."
+                        Header="Add another SharePoint site"
+                        Icon="Add">
+                        <views:SettingsCard.Action>
+                            <Button Click="AddProfile_Click" Content="Add profile" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Sign-in" />
+                    <views:SettingsCard
+                        Description="Profiles sign in with Microsoft's public SharePoint Online Management Shell client, as SharePoint's own PowerShell module does, so no app registration is needed. Microsoft doesn't support other apps using that client and could restrict it. The sign-in window remembers your session, and tokens are cached encrypted for your Windows account. Your account needs term store permissions (term store admin, or group manager or contributor) to make changes."
+                        Header="How sign-in works"
+                        Icon="Info" />
+                    <views:SettingsCard
+                        Description="Optional. Only if your organization blocks the built-in client or provides its own Entra app registration (redirect URI http://localhost); new profiles then sign in with your default browser."
+                        Header="Default app (client) ID for new profiles"
+                        Icon="Key">
+                        <views:SettingsCard.Action>
+                            <TextBox
+                                x:Name="DefaultClientIdBox"
+                                Width="320"
+                                AutomationProperties.Name="Default app (client) ID for new profiles"
+                                LostFocus="DefaultClientIdBox_LostFocus"
+                                PlaceholderText="Built-in SharePoint Online sign-in" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                </StackPanel>
+
+                <!-- ===== Options ===== -->
+                <StackPanel x:Name="OptionsPanel" Style="{StaticResource CardStackStyle}" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Notifications" />
+                    <views:SettingsCard
+                        Description="Seconds before a success message closes itself. 0 keeps it until you close it. Errors and warnings always stay until you close them."
+                        Header="Hide success messages after"
+                        Icon="Info">
+                        <views:SettingsCard.Action>
+                            <NumberBox
+                                x:Name="TimeoutBox"
+                                Width="140"
+                                AutomationProperties.Name="Hide success messages after (seconds)"
+                                LargeChange="5"
+                                Maximum="120"
+                                Minimum="0"
+                                SmallChange="1"
+                                SpinButtonPlacementMode="Inline"
+                                ValidationMode="InvalidInputOverwritten"
+                                ValueChanged="TimeoutBox_ValueChanged" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Term tree" />
+                    <views:SettingsCard
+                        Description="How many items the tree shows when you expand a term group, term set or term. If there are more, a “Show more” row at the end shows the next set. Smaller numbers keep large term sets quick to open; use search to go straight to an item. 0 shows everything. Applies to items expanded from now on."
+                        Header="Items shown at a time"
+                        Icon="TextBulletListLtr">
+                        <views:SettingsCard.Action>
+                            <NumberBox
+                                x:Name="TreePageSizeBox"
+                                Width="140"
+                                AutomationProperties.Name="Items shown at a time in the term tree"
+                                LargeChange="50"
+                                Maximum="5000"
+                                Minimum="0"
+                                SmallChange="10"
+                                SpinButtonPlacementMode="Inline"
+                                ValidationMode="InvalidInputOverwritten"
+                                ValueChanged="TreePageSizeBox_ValueChanged" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Details pane" />
+                    <views:SettingsCard
+                        Description="Show Delete in the details pane's command bar. Turn it off to keep Delete out of easy reach: items can then only be deleted from the term tree's right-click menu (or the Delete key in the tree)."
+                        Header="Delete button"
+                        Icon="Delete">
+                        <views:SettingsCard.Action>
+                            <ToggleSwitch
+                                x:Name="ShowDeleteSwitch"
+                                AutomationProperties.Name="Show Delete in the details pane"
+                                OffContent="Hidden"
+                                OnContent="Shown"
+                                Toggled="ShowDeleteSwitch_Toggled" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Operations log" />
+                    <views:SettingsCard x:Name="LogFolderCard" Header="Operations log" Icon="History">
+                        <views:SettingsCard.Action>
+                            <Button Click="OpenLogFolder_Click" Content="Open folder" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                </StackPanel>
+
+                <!-- ===== Appearance (as in SharePoint Search Explorer) ===== -->
+                <StackPanel x:Name="AppearancePanel" Style="{StaticResource CardStackStyle}" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Theme" />
+                    <views:SettingsCard Description="Choose light or dark, or follow your Windows setting." Header="App theme" Icon="DarkTheme">
+                        <views:SettingsCard.Action>
+                            <ComboBox x:Name="ThemeBox" MinWidth="200" AutomationProperties.Name="App theme" SelectionChanged="ThemeBox_SelectionChanged">
+                                <ComboBoxItem Content="Use system setting" Tag="Default" />
+                                <ComboBoxItem Content="Light" Tag="Light" />
+                                <ComboBoxItem Content="Dark" Tag="Dark" />
+                            </ComboBox>
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                    <views:SettingsCard Description="Use your Windows accent colour, or choose one of the Windows colours for this app." Header="Accent colour" Icon="Color">
+                        <views:SettingsCard.Action>
+                            <ComboBox
+                                x:Name="AccentModeBox"
+                                MinWidth="200"
+                                AutomationProperties.Name="Accent colour"
+                                SelectionChanged="AccentModeBox_SelectionChanged">
+                                <ComboBoxItem Content="Use Windows accent colour" />
+                                <ComboBoxItem Content="Custom" />
+                            </ComboBox>
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                    <!-- The Windows 11 Settings "Windows colors" grid, shown while a custom colour is chosen. -->
+                    <Border
+                        x:Name="AccentPalettePanel"
+                        Padding="52,12,16,16"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource ControlCornerRadius}"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Windows colours" />
+                            <GridView
+                                x:Name="AccentGrid"
+                                AutomationProperties.Name="Windows colours"
+                                IsItemClickEnabled="False"
+                                ItemsSource="{x:Bind h:AccentColors.Palette}"
+                                SelectionChanged="AccentGrid_SelectionChanged"
+                                SelectionMode="Single">
+                                <GridView.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <ItemsWrapGrid MaximumRowsOrColumns="8" Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </GridView.ItemsPanel>
+                                <GridView.ItemTemplate>
+                                    <DataTemplate x:DataType="h:AccentSwatch">
+                                        <Border
+                                            Width="40"
+                                            Height="40"
+                                            AutomationProperties.Name="{x:Bind Name}"
+                                            Background="{x:Bind Brush}"
+                                            CornerRadius="4"
+                                            ToolTipService.ToolTip="{x:Bind Name}" />
+                                    </DataTemplate>
+                                </GridView.ItemTemplate>
+                            </GridView>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Icons" />
+                    <views:SettingsCard
+                        Description="Outline icons match the rest of the app. Colourful icons colour term groups (amber), term sets (blue), and reused or pinned (purple) and deprecated (grey) terms; other terms keep their outline icon."
+                        Header="Term store icons"
+                        Icon="Icons">
+                        <views:SettingsCard.Action>
+                            <ComboBox x:Name="IconStyleBox" MinWidth="200" AutomationProperties.Name="Term store icons" SelectionChanged="IconStyleBox_SelectionChanged">
+                                <ComboBoxItem Content="Outline" />
+                                <ComboBoxItem Content="Colourful" />
+                            </ComboBox>
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                </StackPanel>
+
+                <!-- ===== About ===== -->
+                <StackPanel x:Name="AboutPanel" Style="{StaticResource CardStackStyle}" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="This app" />
+                    <views:SettingsCard
+                        x:Name="VersionCard"
+                        Description="A WinUI 3 app for managing the SharePoint Online term store, built to be friendlier than the term store admin page in the SharePoint admin center. It uses SharePoint CSOM (Microsoft.SharePoint.Client.Taxonomy). SharePoint Online only; SharePoint Server isn't supported."
+                        Icon="Database" />
+                    <views:SettingsCard
+                        Description="This application is being built with AI-generated code. If you prefer not to use AI-generated software, please don't use it."
+                        Header="AI-generated code"
+                        Icon="Warning" />
+                    <views:SettingsCard x:Name="DataFolderCard" Header="Settings and sign-in data" Icon="FolderOpen">
+                        <views:SettingsCard.Action>
+                            <Button Click="OpenDataFolder_Click" Content="Open folder" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                    <views:SettingsCard Description="Fluent UI System Icons by Microsoft, MIT license." Header="Icons" Icon="Info">
+                        <views:SettingsCard.Action>
+                            <HyperlinkButton Content="View on GitHub" NavigateUri="https://github.com/microsoft/fluentui-system-icons" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
+                    <!-- As in SharePoint Search Explorer. -->
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Reset" />
+                    <views:SettingsCard
+                        Description="Removes all profiles and signs out of them, clears the sign-in window's saved session and restores every setting to its default. The operations log is kept unless you choose to delete it. Nothing in SharePoint is changed."
+                        Header="Reset app to defaults"
+                        Icon="ArrowReset">
+                        <views:SettingsCard.Action>
+                            <Button Click="ResetApp_Click" Content="Reset" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </NavigationView>
+</UserControl>

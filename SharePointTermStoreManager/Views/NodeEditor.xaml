@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="SharePointTermStoreManager.Views.NodeEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:h="using:SharePointTermStoreManager.Helpers"
+    xmlns:m="using:SharePointTermStoreManager.Models"
+    xmlns:v="using:SharePointTermStoreManager.Views">
+
+    <UserControl.Resources>
+        <!-- One editable custom property: name, value, remove. -->
+        <DataTemplate x:Key="PropertyRowTemplate" x:DataType="v:PropertyRow">
+            <Grid Margin="0,0,0,6" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox
+                    AutomationProperties.Name="Property name"
+                    IsEnabled="{x:Bind IsEditable, Mode=OneWay}"
+                    PlaceholderText="Name"
+                    Text="{x:Bind Key, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox
+                    Grid.Column="1"
+                    AutomationProperties.Name="Property value"
+                    IsEnabled="{x:Bind IsEditable, Mode=OneWay}"
+                    PlaceholderText="Value"
+                    Text="{x:Bind Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <Button
+                    Grid.Column="2"
+                    AutomationProperties.Name="Remove property"
+                    Click="RemoveProperty_Click"
+                    IsEnabled="{x:Bind IsEditable, Mode=OneWay}"
+                    ToolTipService.ToolTip="Remove property">
+                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind h:FluentIcons.Delete}" />
+                </Button>
+            </Grid>
+        </DataTemplate>
+
+        <Style x:Key="FieldCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Style>
+
+        <!-- A heading inside a section, like the term store's "Translations and synonyms" or "Sort order". -->
+        <Style x:Key="SectionHeadingStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}" />
+
+        <!-- A collapsible section (General, Usage settings, Advanced), as wide as the panel. -->
+        <Style x:Key="SectionExpanderStyle" TargetType="Expander">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+
+        <!-- Breadcrumb parts (built in code, see SetTitle): ancestors and the overflow "…" are subtle buttons, the
+             current item is bold text, with a small chevron after each button. 20px, like the profile name in the
+             tree's header. -->
+        <Style x:Key="BreadcrumbButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Padding" Value="6,2,6,3" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="BreadcrumbCurrentStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="6,0" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- A synonym chip (built in code, see RebuildSynonymChips): the label on a light fill, then a remove button. -->
+        <Style x:Key="SynonymChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+            <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+            <Setter Property="Padding" Value="10,0,2,0" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style x:Key="SynonymRemoveButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="BreadcrumbChevronStyle" TargetType="FontIcon">
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="FontFamily" Value="{StaticResource FluentIconsFont}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Spacing is set per row (margins) rather than with RowSpacing, so rows that are empty (no command bar
+         before an item is chosen, no hint bars) don't leave gaps. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: the item's path as a breadcrumb (see SetTitle and BreadcrumbPanel), with the loading ring and
+             unsaved state at the right. The -6 left margin lines the first name's text up with the form below
+             (the breadcrumb buttons have 6px of padding). -->
+        <Grid x:Name="TitlePanel" Grid.Row="1" Margin="-6,0,0,8" ColumnSpacing="8" Visibility="Collapsed">
+            <!-- Breadcrumb buttons are subtle: no fill or border until hovered, secondary text that darkens on hover. -->
+            <Grid.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Default">
+                            <StaticResource x:Key="ButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
+                            <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                            <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                            <StaticResource x:Key="ButtonForeground" ResourceKey="TextFillColorSecondaryBrush" />
+                            <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="TextFillColorPrimaryBrush" />
+                            <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="TextFillColorSecondaryBrush" />
+                            <StaticResource x:Key="ButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+                            <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
+                            <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Light">
+                            <StaticResource x:Key="ButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
+                            <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                            <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                            <StaticResource x:Key="ButtonForeground" ResourceKey="TextFillColorSecondaryBrush" />
+                            <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="TextFillColorPrimaryBrush" />
+                            <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="TextFillColorSecondaryBrush" />
+                            <StaticResource x:Key="ButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+                            <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
+                            <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                </ResourceDictionary>
+            </Grid.Resources>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <v:BreadcrumbPanel x:Name="Breadcrumb" HorizontalAlignment="Left" VerticalAlignment="Center" />
+            <ProgressRing x:Name="LoadingRing" Grid.Column="1" Width="16" Height="16" VerticalAlignment="Center" IsActive="False" />
+            <TextBlock
+                x:Name="DirtyText"
+                Grid.Column="2"
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                Text="• Unsaved changes"
+                Visibility="Collapsed" />
+        </Grid>
+
+        <!-- Shown while no item is selected (with the command bar above, all disabled, as a preview), centered
+             in the card and styled like the tree's empty state (MainWindow's EmptyState): same icon size and
+             colour, same text size and colour. -->
+        <StackPanel
+            x:Name="EmptyState"
+            Grid.RowSpan="4"
+            MaxWidth="320"
+            Margin="16"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="12">
+            <FontIcon HorizontalAlignment="Center" FontFamily="{StaticResource FluentIconsFont}" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Glyph="{x:Bind h:FluentIcons.DocumentEdit}" />
+            <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Select a term in the term tree to the left to view or modify its properties." TextAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Commands for this item: save and discard, then the item's actions (filled in by the window, see
+             SetItemCommands), above the item's name. When the panel is too narrow for them all, the bar moves
+             the last ones into its "…" menu by itself. Right-aligned like the tree's command bar; the -8 top and
+             right margins put it 8px from the top and right of the card, as the tree's bar is. -->
+        <CommandBar
+            x:Name="ItemCommands"
+            Grid.Row="0"
+            Margin="0,-8,-8,4"
+            HorizontalAlignment="Right"
+            Background="Transparent"
+            DefaultLabelPosition="Right"
+            Visibility="Collapsed">
+            <AppBarButton
+                x:Name="SaveButton"
+                Click="Save_Click"
+                Icon="{h:FluentIcon Icon=Save}"
+                IsEnabled="False"
+                Label="Save"
+                ToolTipService.ToolTip="Save (Ctrl+S)">
+                <AppBarButton.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="S" Modifiers="Control" />
+                </AppBarButton.KeyboardAccelerators>
+            </AppBarButton>
+            <AppBarButton
+                x:Name="DiscardButton"
+                Click="Discard_Click"
+                Icon="{h:FluentIcon Icon=ArrowUndo}"
+                IsEnabled="False"
+                Label="Discard"
+                ToolTipService.ToolTip="Discard unsaved changes" />
+            <AppBarSeparator x:Name="SaveSeparator" />
+        </CommandBar>
+
+        <!-- Collapsed unless a bar is open (see UpdateHintPanel): a closed InfoBar still takes its spacing. -->
+        <StackPanel x:Name="HintPanel" Grid.Row="2" Margin="0,0,0,8" Spacing="8" Visibility="Collapsed">
+            <InfoBar x:Name="HintBar" IsClosable="False" Severity="Informational" />
+            <InfoBar x:Name="ValidationBar" Closed="ValidationBar_Closed" IsClosable="True" Severity="Error" Title="Can't save yet" />
+        </StackPanel>
+
+        <!-- Form: collapsible sections laid out like the SharePoint term store's General, Usage settings and
+             Advanced tabs. Sections that don't apply to the item (e.g. Advanced for a term group) are hidden. -->
+        <ScrollViewer x:Name="FormScroller" Grid.Row="3" Padding="0,0,12,0" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+            <StackPanel Spacing="8">
+
+                <!-- ===== General ===== -->
+                <Expander x:Name="GeneralSection" Header="General" IsExpanded="True" Style="{StaticResource SectionExpanderStyle}">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="2">
+                            <TextBlock x:Name="GeneralHeading" Style="{StaticResource SectionHeadingStyle}" Text="Translations and synonyms" />
+                            <TextBlock x:Name="LanguageText" Style="{StaticResource FieldCaptionStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <TextBox x:Name="NameBox" Header="Name" MaxLength="255" TextChanged="Field_Changed" />
+
+                        <!-- Synonyms, as on the SharePoint term store page: type one or several (separated by
+                             semicolons) and Add (or Enter); each shows as a chip with a remove button. Text left
+                             in the box counts as a change and is saved with the rest (see GetEdited). -->
+                        <StackPanel x:Name="SynonymsPanel" Spacing="4">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Synonyms" />
+                            <TextBlock Style="{StaticResource FieldCaptionStyle}" Text="Edit synonyms for this term. Add several at once by separating them with semicolons." TextWrapping="Wrap" />
+                            <Grid Margin="0,4,0,0" ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    x:Name="SynonymInput"
+                                    AutomationProperties.Name="New synonyms"
+                                    KeyDown="SynonymInput_KeyDown"
+                                    PlaceholderText="e.g. Synonym 1; Synonym 2"
+                                    TextChanged="SynonymInput_TextChanged" />
+                                <!-- Stretched to the row, so it's exactly as tall as the text box. -->
+                                <Button
+                                    x:Name="AddSynonymButton"
+                                    Grid.Column="1"
+                                    MinWidth="80"
+                                    VerticalAlignment="Stretch"
+                                    Click="AddSynonym_Click"
+                                    Content="Add"
+                                    IsEnabled="False" />
+                            </Grid>
+                            <TextBlock
+                                x:Name="SynonymError"
+                                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                TextWrapping="Wrap"
+                                Visibility="Collapsed" />
+                            <v:WrapPanel x:Name="SynonymChips" Margin="0,8,0,0" HorizontalSpacing="8" VerticalSpacing="8">
+                                <!-- Chip remove buttons are subtle: no fill or border until hovered. -->
+                                <v:WrapPanel.Resources>
+                                    <ResourceDictionary>
+                                        <ResourceDictionary.ThemeDictionaries>
+                                            <ResourceDictionary x:Key="Default">
+                                                <StaticResource x:Key="ButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                                                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                                <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="SubtleFillColorTransparentBrush" />
+                                            </ResourceDictionary>
+                                            <ResourceDictionary x:Key="Light">
+                                                <StaticResource x:Key="ButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                                                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                                                <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
+                                                <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="SubtleFillColorTransparentBrush" />
+                                            </ResourceDictionary>
+                                        </ResourceDictionary.ThemeDictionaries>
+                                    </ResourceDictionary>
+                                </v:WrapPanel.Resources>
+                            </v:WrapPanel>
+                        </StackPanel>
+
+                        <TextBox
+                            x:Name="DescriptionBox"
+                            MinHeight="72"
+                            AcceptsReturn="True"
+                            Header="Description"
+                            MaxLength="1000"
+                            TextChanged="Field_Changed"
+                            TextWrapping="Wrap" />
+
+                        <!-- Labels in the term store's other languages, read-only. -->
+                        <StackPanel x:Name="OtherLanguagesPanel" Spacing="6">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Other languages" />
+                            <TextBlock Style="{StaticResource FieldCaptionStyle}" Text="Labels in the term store's other working languages. Shown for reference; change them in the SharePoint term store." TextWrapping="Wrap" />
+                            <Grid Padding="0,6" ColumnSpacing="16" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="3*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Text="Language" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Text="Translation" />
+                                <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Text="Synonyms" />
+                            </Grid>
+                            <ItemsControl x:Name="OtherLanguagesList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="m:LanguageLabels">
+                                        <Grid Padding="0,6" ColumnSpacing="16" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" />
+                                                <ColumnDefinition Width="2*" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{x:Bind Language}" TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="1" IsTextSelectionEnabled="True" Text="{x:Bind Label}" TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="2" IsTextSelectionEnabled="True" Text="{x:Bind Synonyms}" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <!-- Term set: who looks after it. -->
+                        <StackPanel x:Name="TermSetPanel" Spacing="16">
+                            <TextBox x:Name="OwnerBox" Header="Owner" PlaceholderText="e.g. i:0#.f|membership|alex@contoso.com" TextChanged="Field_Changed" />
+                            <TextBox x:Name="ContactBox" Header="Contact" PlaceholderText="Email address for term suggestions and feedback" TextChanged="Field_Changed" />
+                        </StackPanel>
+                    </StackPanel>
+                </Expander>
+
+                <!-- ===== Usage settings ===== -->
+                <Expander x:Name="UsageSection" Header="Usage settings" IsExpanded="True" Style="{StaticResource SectionExpanderStyle}">
+                    <StackPanel Spacing="20">
+                        <StackPanel x:Name="TaggingPanel" Spacing="4">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Available for tagging" />
+                            <TextBlock x:Name="TaggingCaption" Style="{StaticResource FieldCaptionStyle}" TextWrapping="Wrap" />
+                            <ToggleSwitch
+                                x:Name="TaggingBox"
+                                AutomationProperties.Name="Available for tagging"
+                                OffContent="Disabled"
+                                OnContent="Enabled"
+                                Toggled="Field_Changed" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="SubmissionPanel" Spacing="4">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Submission policy" />
+                            <TextBlock Style="{StaticResource FieldCaptionStyle}" Text="Open: anyone who can tag content can add terms. Closed: only term store admins and group managers or contributors can." TextWrapping="Wrap" />
+                            <ToggleSwitch
+                                x:Name="OpenBox"
+                                AutomationProperties.Name="Open term set"
+                                OffContent="Closed"
+                                OnContent="Open"
+                                Toggled="Field_Changed" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="SortOrderPanel" Spacing="4">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Sort order" />
+                            <TextBlock x:Name="SortOrderCaption" Style="{StaticResource FieldCaptionStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SortOrderText" Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Unique identifier" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock x:Name="IdText" VerticalAlignment="Center" FontFamily="Consolas" IsTextSelectionEnabled="True" />
+                                <Button Click="CopyId_Click" AutomationProperties.Name="Copy the unique identifier" ToolTipService.ToolTip="Copy">
+                                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind h:FluentIcons.Copy}" />
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Label|GUID, the form Power Automate's managed metadata actions take (terms only). -->
+                        <StackPanel x:Name="NameIdPanel" Spacing="4">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Name and identifier" />
+                            <TextBlock Style="{StaticResource FieldCaptionStyle}" Text="The term's default label and ID as label|ID, the format Power Automate uses for managed metadata values." TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock x:Name="NameIdText" VerticalAlignment="Center" FontFamily="Consolas" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                                <Button Click="CopyNameId_Click" AutomationProperties.Name="Copy the name and identifier" ToolTipService.ToolTip="Copy">
+                                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind h:FluentIcons.Copy}" />
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- The term sets a term is in. -->
+                        <StackPanel x:Name="MemberOfPanel" Spacing="6">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Member of" />
+                            <Grid Padding="0,6" ColumnSpacing="16" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="3*" />
+                                    <ColumnDefinition Width="Auto" MinWidth="110" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Text="Term set" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Text="Description" />
+                                <TextBlock Grid.Column="2" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Text="Relation type" />
+                            </Grid>
+                            <ItemsControl x:Name="MemberOfList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="m:TermSetMembership">
+                                        <Grid Padding="0,6" ColumnSpacing="16" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" />
+                                                <ColumnDefinition Width="3*" />
+                                                <ColumnDefinition Width="Auto" MinWidth="110" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{x:Bind TermSetName}" TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Description}" TextWrapping="Wrap" />
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="14" Glyph="{x:Bind v:NodeEditor.RelationGlyph(Relation)}" />
+                                                <TextBlock Text="{x:Bind Relation}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <!-- Read-only facts. -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Details" />
+                            <Grid ColumnSpacing="24" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Style="{StaticResource FieldCaptionStyle}" Text="Path" />
+                                <TextBlock x:Name="PathText" Grid.Column="1" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource FieldCaptionStyle}" Text="Created" />
+                                <TextBlock x:Name="CreatedText" Grid.Row="1" Grid.Column="1" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource FieldCaptionStyle}" Text="Last modified" />
+                                <TextBlock x:Name="ModifiedText" Grid.Row="2" Grid.Column="1" />
+                                <TextBlock x:Name="StatusCaption" Grid.Row="3" Style="{StaticResource FieldCaptionStyle}" Text="Status" />
+                                <TextBlock x:Name="StatusText" Grid.Row="3" Grid.Column="1" TextWrapping="Wrap" />
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Expander>
+
+                <!-- ===== Advanced ===== -->
+                <Expander x:Name="AdvancedSection" Header="Advanced" IsExpanded="True" Style="{StaticResource SectionExpanderStyle}">
+                    <StackPanel Spacing="24">
+                        <StackPanel x:Name="CustomPropsPanel" Spacing="6">
+                            <TextBlock x:Name="CustomPropsHeading" Style="{StaticResource SectionHeadingStyle}" Text="Shared custom properties" />
+                            <TextBlock x:Name="CustomPropsCaption" Style="{StaticResource FieldCaptionStyle}" TextWrapping="Wrap" />
+                            <ItemsControl x:Name="CustomPropsList" ItemTemplate="{StaticResource PropertyRowTemplate}" />
+                            <Button x:Name="AddCustomPropButton" Click="AddCustomProperty_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind h:FluentIcons.Add}" />
+                                    <TextBlock Text="Add property" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <StackPanel x:Name="LocalPropsPanel" Spacing="6">
+                            <TextBlock Style="{StaticResource SectionHeadingStyle}" Text="Local custom properties" />
+                            <TextBlock Style="{StaticResource FieldCaptionStyle}" Text="Local custom properties are only available for this term in this term set." TextWrapping="Wrap" />
+                            <ItemsControl x:Name="LocalPropsList" ItemTemplate="{StaticResource PropertyRowTemplate}" />
+                            <Button x:Name="AddLocalPropButton" Click="AddLocalProperty_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind h:FluentIcons.Add}" />
+                                    <TextBlock Text="Add local property" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

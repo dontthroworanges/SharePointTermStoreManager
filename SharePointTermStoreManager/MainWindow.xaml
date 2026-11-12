@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="SharePointTermStoreManager.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:h="using:SharePointTermStoreManager.Helpers"
+    xmlns:m="using:SharePointTermStoreManager.Models"
+    xmlns:v="using:SharePointTermStoreManager.Views"
+    Title="SharePoint Term Store Manager">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title bar, as in SharePoint Search Explorer: app icon and name, and a centered search box. -->
+        <TitleBar
+            x:Name="AppTitleBar"
+            Height="56"
+            IsBackButtonVisible="False"
+            IsPaneToggleButtonVisible="False">
+            <!-- App icon and name in the left header rather than IconSource/Title, which TitleBar fixes at 16px. -->
+            <TitleBar.LeftHeader>
+                <StackPanel Margin="16,0,0,0" Orientation="Horizontal" Spacing="12">
+                    <Image
+                        Width="24"
+                        Height="24"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AccessibilityView="Raw"
+                        Source="ms-appx:///Assets/AppIcon.png" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Text="SharePoint Term Store Manager" />
+                </StackPanel>
+            </TitleBar.LeftHeader>
+            <TitleBar.Content>
+                <Grid x:Name="SearchBar" Width="640" ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <AutoSuggestBox
+                        x:Name="GlobalSearchBox"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="Search the term store"
+                        IsEnabled="False"
+                        PlaceholderText="Connect to search terms, term sets and groups"
+                        QuerySubmitted="GlobalSearchBox_QuerySubmitted"
+                        TextChanged="GlobalSearchBox_TextChanged"
+                        TextMemberPath="Name"
+                        UpdateTextOnSelect="False">
+                        <AutoSuggestBox.ItemTemplate>
+                            <DataTemplate x:DataType="m:ItemRef">
+                                <Grid Padding="0,4" ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Margin="0,2,0,0" VerticalAlignment="Top">
+                                        <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind Glyph}" Visibility="{x:Bind h:TermIcons.OutlineVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
+                                        <FontIcon FontFamily="{StaticResource FluentIconsFilledFont}" FontSize="16" Foreground="{x:Bind h:TermIcons.Color(Kind, IsDeprecated, IsReused, IsPinned)}" Glyph="{x:Bind h:TermIcons.Filled(Kind, IsDeprecated, IsReused, IsPinned)}" Visibility="{x:Bind h:TermIcons.ColorVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" Opacity="{x:Bind TextOpacity}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Badges}" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            Text="{x:Bind Path}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </AutoSuggestBox.ItemTemplate>
+                    </AutoSuggestBox>
+                    <Button
+                        x:Name="GlobalSearchButton"
+                        Grid.Column="1"
+                        Height="32"
+                        MinWidth="44"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="Search"
+                        Click="GlobalSearchButton_Click"
+                        IsEnabled="False"
+                        Style="{StaticResource AccentButtonStyle}"
+                        ToolTipService.ToolTip="Search">
+                        <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="18" Glyph="{x:Bind h:FluentIcons.Search}" />
+                    </Button>
+                </Grid>
+            </TitleBar.Content>
+        </TitleBar>
+
+        <!-- Left navigation, as in SharePoint Search Explorer: the term store above; the profile switcher and
+             Settings (connections, options, about) at the bottom. Default (Auto) display mode: expanded when
+             wide, a compact rail when narrower. -->
+        <NavigationView
+            x:Name="NavView"
+            Grid.Row="1"
+            IsBackButtonVisible="Collapsed"
+            IsPaneOpen="False"
+            IsSettingsVisible="False"
+            IsTitleBarAutoPaddingEnabled="False"
+            ItemInvoked="NavView_ItemInvoked"
+            OpenPaneLength="260"
+            PaneToggleButtonStyle="{StaticResource FluentPaneToggleButtonStyle}">
+            <NavigationView.MenuItems>
+                <NavigationViewItem
+                    x:Name="TermStoreNavItem"
+                    Content="Term Store"
+                    Icon="{h:FluentIcon Icon=Database}"
+                    Tag="termstore" />
+                <NavigationViewItem
+                    x:Name="LogNavItem"
+                    Content="Operations Log"
+                    Icon="{h:FluentIcon Icon=History}"
+                    Tag="log" />
+                <NavigationViewItem
+                    x:Name="ExportNavItem"
+                    Content="Export"
+                    Icon="{h:FluentIcon Icon=ArrowExportLtr}"
+                    Tag="export" />
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <!-- Divider above the profile button, inset so it stays visible in the compact rail. -->
+                <NavigationViewItemSeparator Margin="12,0" />
+                <NavigationViewItem
+                    x:Name="ProfileNavItem"
+                    AutomationProperties.Name="Profile"
+                    Icon="{h:FluentIcon Icon=Person}"
+                    SelectsOnInvoked="False"
+                    Tag="profile">
+                    <NavigationViewItem.InfoBadge>
+                        <!-- Small corner badge: green check when signed in, yellow alert when not. -->
+                        <InfoBadge
+                            x:Name="ProfileBadge"
+                            Width="12"
+                            Height="12"
+                            MinWidth="12"
+                            MinHeight="12"
+                            Margin="0,3,1,0"
+                            Padding="0"
+                            Style="{StaticResource CautionIconInfoBadgeStyle}" />
+                    </NavigationViewItem.InfoBadge>
+                </NavigationViewItem>
+                <NavigationViewItem
+                    x:Name="SettingsNavItem"
+                    Content="Settings"
+                    Icon="{h:FluentIcon Icon=Settings}"
+                    Tag="settings" />
+            </NavigationView.FooterMenuItems>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <InfoBar x:Name="StatusBar" Margin="16,8,16,0" IsClosable="True" />
+
+                <v:SettingsView x:Name="SettingsView" Grid.Row="1" Visibility="Collapsed" />
+
+                <v:OperationsLogView x:Name="LogView" Grid.Row="1" Visibility="Collapsed" />
+
+                <v:ExportView x:Name="ExportView" Grid.Row="1" Visibility="Collapsed" />
+
+                <Grid x:Name="TermStoreView" Grid.Row="1" Padding="16,12,16,16">
+
+                    <!-- Tree and editor, with a splitter between them: drag (or arrow keys) to resize the tree,
+                         double-click to go back to the default 2:3 split. The width is remembered (see
+                         ApplyTreeWidth); neither side goes below its minimum. Until a term store is loaded, the
+                         tree card takes the whole width and the editor and splitter are hidden (see UpdatePaneLayout);
+                         the columns start in that state. -->
+                    <Grid x:Name="PanesGrid">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="TreeColumn" Width="*" MinWidth="280" />
+                            <ColumnDefinition x:Name="SplitterColumn" Width="0" />
+                            <ColumnDefinition x:Name="EditorColumn" Width="0" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Term store hierarchy. Children load when a node is first expanded. -->
+                        <Border Padding="4,8" SizeChanged="TreeCard_SizeChanged" Style="{StaticResource CardBorderStyle}">
+                            <Grid RowSpacing="4">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <!-- The connected profile, and store-level commands (commands for the selected item are in
+                                     the editor's command bar). The card's 8px padding puts this bar 8px from the top of the
+                                     card, the same as the editor's command bar, and the 12px left margin puts the name
+                                     16px from the left, in line with the editor's text. Hidden until a term store
+                                     is loaded: the empty state shows the profile name instead. -->
+                                <Grid x:Name="TreeHeader" Margin="12,0,4,0" ColumnSpacing="8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                                        <!-- The profile's icon, as in the profile menu. Fluent glyphs sit high in their box, so it's
+                                             drawn 2px lower to line its centre up with the name's letters. -->
+                                        <FontIcon
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.AccessibilityView="Raw"
+                                            FontFamily="{StaticResource FluentIconsFont}"
+                                            FontSize="20"
+                                            Glyph="{x:Bind h:FluentIcons.City}">
+                                            <FontIcon.RenderTransform>
+                                                <TranslateTransform Y="2" />
+                                            </FontIcon.RenderTransform>
+                                        </FontIcon>
+                                        <TextBlock
+                                            x:Name="TreeProfileText"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource SubtitleTextBlockStyle}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <ProgressRing x:Name="BusyRing" Width="16" Height="16" VerticalAlignment="Center" IsActive="False" />
+                                    </StackPanel>
+                                    <CommandBar
+                                        x:Name="TreeCommands"
+                                        Grid.Column="1"
+                                        Background="Transparent"
+                                        DefaultLabelPosition="Right"
+                                        OverflowButtonVisibility="Collapsed">
+                                        <AppBarButton
+                                            x:Name="NewGroupButton"
+                                            Click="NewGroup_Click"
+                                            Icon="{h:FluentIcon Icon=FolderAdd}"
+                                            IsEnabled="False"
+                                            Label="New term group"
+                                            ToolTipService.ToolTip="Create a term group at the top of the term store" />
+                                        <AppBarButton
+                                            x:Name="RefreshButton"
+                                            Click="Refresh_Click"
+                                            Icon="{h:FluentIcon Icon=ArrowClockwise}"
+                                            IsEnabled="False"
+                                            Label="Refresh"
+                                            ToolTipService.ToolTip="Reload the term store (F5)">
+                                            <AppBarButton.KeyboardAccelerators>
+                                                <KeyboardAccelerator Key="F5" />
+                                            </AppBarButton.KeyboardAccelerators>
+                                        </AppBarButton>
+                                    </CommandBar>
+                                </Grid>
+                                <TreeView
+                                    x:Name="Tree"
+                                    Grid.Row="1"
+                                    Expanding="Tree_Expanding"
+                                    ItemInvoked="Tree_ItemInvoked"
+                                    ItemsSource="{x:Bind Roots}"
+                                    ContextRequested="Tree_ContextRequested"
+                                    KeyDown="Tree_KeyDown"
+                                    SelectionMode="Single">
+                                    <TreeView.ItemTemplate>
+                                        <DataTemplate x:DataType="m:TermNode">
+                                            <TreeViewItem
+                                                AutomationProperties.Name="{x:Bind Name, Mode=OneWay}"
+                                                HasUnrealizedChildren="{x:Bind HasUnrealizedChildren, Mode=OneWay}"
+                                                IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
+                                                ItemsSource="{x:Bind Children}">
+                                                <!-- A term store item, or the "Show more" row at the end of a partly shown
+                                                     list (see TermNode.ShowMore). -->
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind h:FluentIcons.MoreHorizontal}" Visibility="{x:Bind MoreIconVisibility}" />
+                                                    <Grid Visibility="{x:Bind ItemIconVisibility}">
+                                                        <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind Glyph, Mode=OneWay}" Visibility="{x:Bind h:TermIcons.OutlineVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
+                                                        <FontIcon FontFamily="{StaticResource FluentIconsFilledFont}" FontSize="16" Foreground="{x:Bind h:TermIcons.Color(Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" Glyph="{x:Bind h:TermIcons.Filled(Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" Visibility="{x:Bind h:TermIcons.ColorVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
+                                                    </Grid>
+                                                    <TextBlock Opacity="{x:Bind TextOpacity, Mode=OneWay}" Text="{x:Bind Name, Mode=OneWay}" />
+                                                    <ProgressRing Width="12" Height="12" IsActive="{x:Bind IsLoading, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </TreeViewItem>
+                                        </DataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
+
+                                <!-- Shown until a term store is loaded, centered in the whole card (the header is
+                                     hidden then): icon, the profile's name, what to do, and Connect (a progress ring
+                                     while connecting). -->
+                                <StackPanel
+                                    x:Name="EmptyState"
+                                    Grid.RowSpan="2"
+                                    MaxWidth="400"
+                                    Margin="16"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="12">
+                                    <FontIcon HorizontalAlignment="Center" FontFamily="{StaticResource FluentIconsFont}" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Glyph="{x:Bind h:FluentIcons.Database}" />
+                                    <TextBlock
+                                        x:Name="EmptyStateProfileText"
+                                        HorizontalAlignment="Center"
+                                        Style="{StaticResource SubtitleTextBlockStyle}"
+                                        TextAlignment="Center"
+                                        TextWrapping="Wrap" />
+                                    <TextBlock x:Name="EmptyStateText" MaxWidth="320" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Center" TextWrapping="Wrap" />
+                                    <Button x:Name="ConnectButton" HorizontalAlignment="Center" Click="Connect_Click" Style="{StaticResource AccentButtonStyle}">
+                                        <TextBlock x:Name="ConnectButtonText" Text="Connect" />
+                                    </Button>
+                                    <ProgressRing x:Name="EmptyStateRing" Width="24" Height="24" HorizontalAlignment="Center" IsActive="False" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <v:PaneSplitter x:Name="TreeSplitter" Grid.Column="1" Visibility="Collapsed" />
+
+                        <!-- Edit the selected node. -->
+                        <Border x:Name="EditorCard" Grid.Column="2" Style="{StaticResource CardBorderStyle}" Visibility="Collapsed">
+                            <v:NodeEditor x:Name="Editor" />
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </NavigationView>
+    </Grid>
+</Window>
