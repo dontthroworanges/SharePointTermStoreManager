@@ -52,10 +52,6 @@ Early development. Today the app can:
   Choose the term groups and whether to include deprecated terms. The Excel file is written directly as Office
   Open XML, so no extra library is needed.
 
-## Planned
-- A bulk merge queue (multi-select or CSV of source → target), with validation, preview, progress and a log.
-- Snapshot export of whole term sets (with child terms) before destructive operations.
-
 ## How it talks to SharePoint
 The app uses SharePoint CSOM (`Microsoft.SharePoint.Client.Taxonomy`). It is the only supported API that covers
 CRUD, merge, reuse and deprecate without an app registration.
