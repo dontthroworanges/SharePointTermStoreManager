@@ -31,6 +31,12 @@ public sealed partial class SettingsView : UserControl
         CategoryNav.SelectedItem = CategoryNav.MenuItems[0];
         App.Settings.CurrentProfileChanged += (_, _) => UpdateProfile();
         UpdateProfile();
+
+        UpdateService.StateChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateUpdateCard);
+        UpdateUpdateCard();
+
+        StartMenuCard.Description =
+            $"Add a shortcut to this app to your Start menu (for your account only, no admin rights needed). It follows the app when it updates itself. Runs {UpdateService.ExecutablePath}";
     }
 
     /// <summary>Shows the saved settings in the controls, without saving them again (also after a reset).</summary>
@@ -45,6 +51,8 @@ public sealed partial class SettingsView : UserControl
         LoadAccentColor();
         IconStyleBox.SelectedIndex = data.UseColorfulIcons ? 1 : 0;
         DefaultClientIdBox.Text = data.DefaultClientId;
+        AutoUpdateSwitch.IsOn = data.CheckForUpdatesAtStartup;
+        StartMenuSwitch.IsOn = StartMenuShortcut.Exists;
         _loading = false;
     }
 
@@ -233,6 +241,70 @@ public sealed partial class SettingsView : UserControl
     {
         Directory.CreateDirectory(SettingsStore.DataFolder);
         await Launcher.LaunchFolderPathAsync(SettingsStore.DataFolder);
+    }
+
+    /// <summary>Shows the update check's progress and result, whether it started here or at startup.</summary>
+    private void UpdateUpdateCard()
+    {
+        string current = UpdateService.CurrentVersion.ToString(3);
+        string? available = UpdateService.AvailableVersion?.ToString(3);
+        var state = UpdateService.State;
+        bool working = state is UpdateState.Checking or UpdateState.Downloading;
+
+        UpdateCard.Description = state switch
+        {
+            UpdateState.Checking => "Checking GitHub for a newer version…",
+            UpdateState.Downloading => $"Downloading version {available}… {UpdateService.DownloadPercent}%",
+            UpdateState.Ready => $"Version {available} is downloaded and ready to install. You have {current}.",
+            UpdateState.UpToDate => $"You're up to date (version {current}).",
+            UpdateState.Failed => UpdateService.LastError ?? "Couldn't check for updates.",
+            _ => $"You have version {current}. Newer releases are downloaded from GitHub and replace this app's .exe.",
+        };
+        UpdateButton.Content = state == UpdateState.Ready ? "Install and restart" : "Check for updates";
+        UpdateButton.IsEnabled = !working;
+        UpdateProgressRing.IsActive = working;
+        UpdateProgressRing.Visibility = Vis(working);
+    }
+
+    private async void UpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        var update = UpdateService.ReadyUpdate;
+        if (UpdateService.State != UpdateState.Ready || update == null)
+        {
+            try
+            {
+                update = await UpdateService.CheckAndDownloadAsync();
+            }
+            catch (UpdateException)
+            {
+                return; // shown on the card
+            }
+        }
+        if (update != null) await App.MainWindow.OfferUpdateAsync(update);
+    }
+
+    private void StartMenuSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        try
+        {
+            if (StartMenuSwitch.IsOn) StartMenuShortcut.Create();
+            else StartMenuShortcut.Remove();
+        }
+        catch (Exception ex)
+        {
+            App.MainWindow.ShowStatus($"Couldn't {(StartMenuSwitch.IsOn ? "add" : "remove")} the Start menu shortcut: {ex.Message}", InfoBarSeverity.Error);
+            _loading = true;
+            StartMenuSwitch.IsOn = StartMenuShortcut.Exists;
+            _loading = false;
+        }
+    }
+
+    private void AutoUpdateSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        App.Settings.Data.CheckForUpdatesAtStartup = AutoUpdateSwitch.IsOn;
+        App.Settings.Save();
     }
 
     /// <summary>

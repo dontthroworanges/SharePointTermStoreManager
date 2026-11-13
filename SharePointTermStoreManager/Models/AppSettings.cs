@@ -41,4 +41,10 @@ public sealed class AppSettings
 
     /// <summary>Whether the Export page includes deprecated terms.</summary>
     public bool ExportIncludeDeprecated { get; set; } = true;
+
+    /// <summary>
+    /// At startup, check GitHub for a newer release and download it in the background; the user is asked before
+    /// it's installed.
+    /// </summary>
+    public bool CheckForUpdatesAtStartup { get; set; } = true;
 }

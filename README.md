@@ -33,3 +33,29 @@ The build output runs as is; there is no installer. Settings, the sign-in sessio
 kept in `%LOCALAPPDATA%\SharePointTermStoreManager`. **Settings › About › Reset app to defaults** signs out and
 removes every profile, clears the sign-in session and restores all settings; the operations log is kept unless you
 choose to delete it too.
+
+## Updates
+**Settings › About › Check for updates** (and, unless turned off, every start) asks GitHub for the latest release of
+[dontthroworanges/SharePointTermStoreManager](https://github.com/dontthroworanges/SharePointTermStoreManager). If its
+tag (e.g. `v0.2.0`) is newer than the app's `<Version>`, the release's `.exe` is downloaded in the background to
+`%LOCALAPPDATA%\SharePointTermStoreManager\Updates`, checked against GitHub's SHA-256 digest, and offered for install.
+Installing renames the running `.exe` to `.exe.old`, puts the new one in its place and restarts; the next start removes
+the `.old` file. If the app's folder needs admin rights, Windows asks for them.
+
+To publish a release, bump `<Version>` in the csproj, then publish the single-file `.exe` (also the VS Code `publish`
+task):
+
+```
+dotnet publish SharePointTermStoreManager/SharePointTermStoreManager.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish/win-x64
+```
+
+This produces `publish/win-x64/SharePointTermStoreManager.exe`. Attach it to a GitHub release tagged `v<Version>`
+(drafts and pre-releases are ignored), keeping its file name: an update saves the new `.exe` under the release file's
+name, in place of the running one. If you publish more than one architecture, include `x64`, `x86` or `arm64` in each
+asset's name.
+
+## Install options
+The app is a single portable `.exe` that runs from any folder, with nothing to install. To add it to the Start menu,
+turn on **Settings › About › Show in the Start menu**. This creates a shortcut for your account only, without admin
+rights. The app keeps the shortcut pointing at itself after it updates or moves. Don't rename the `.exe`: a WinUI app
+finds its resources by its own file name.

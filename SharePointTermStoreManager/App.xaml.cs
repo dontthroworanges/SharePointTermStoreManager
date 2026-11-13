@@ -27,6 +27,10 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         Settings = SettingsStore.Load();
+        // Removes the previous .exe an update renamed out of the way, and installed downloads.
+        UpdateService.CleanUpAfterUpdate();
+        // If the .exe has moved, keep its Start menu shortcut pointing at this one.
+        StartMenuShortcut.KeepCurrent();
         Helpers.DisplayOptions.Current.UseColorfulIcons = Settings.Data.UseColorfulIcons;
         // Before the window exists, so the accent resources are in place from the start (see AccentColors).
         Helpers.AccentColors.Apply(Settings.Data.AccentColor);

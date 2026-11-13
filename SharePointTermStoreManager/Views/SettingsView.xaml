@@ -250,6 +250,14 @@
                         Description="A WinUI 3 app for managing the SharePoint Online term store, built to be friendlier than the term store admin page in the SharePoint admin center. It uses SharePoint CSOM (Microsoft.SharePoint.Client.Taxonomy). SharePoint Online only; SharePoint Server isn't supported."
                         Icon="Database" />
                     <views:SettingsCard
+                        Description="github.com/dontthroworanges/SharePointTermStoreManager"
+                        Header="Source code, releases and issues"
+                        Icon="Code">
+                        <views:SettingsCard.Action>
+                            <HyperlinkButton Content="View on GitHub" NavigateUri="https://github.com/dontthroworanges/SharePointTermStoreManager" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                    <views:SettingsCard
                         Description="This application is being built with AI-generated code. If you prefer not to use AI-generated software, please don't use it."
                         Header="AI-generated code"
                         Icon="Warning" />
@@ -261,6 +269,46 @@
                     <views:SettingsCard Description="Fluent UI System Icons by Microsoft, MIT license." Header="Icons" Icon="Info">
                         <views:SettingsCard.Action>
                             <HyperlinkButton Content="View on GitHub" NavigateUri="https://github.com/microsoft/fluentui-system-icons" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Installation" />
+                    <views:SettingsCard
+                        x:Name="StartMenuCard"
+                        Header="Show in the Start menu"
+                        Icon="Open">
+                        <views:SettingsCard.Action>
+                            <ToggleSwitch
+                                x:Name="StartMenuSwitch"
+                                AutomationProperties.Name="Show in the Start menu"
+                                Toggled="StartMenuSwitch_Toggled" />
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Updates" />
+                    <!-- Description and button follow UpdateService's state (see UpdateUpdateCard). -->
+                    <views:SettingsCard x:Name="UpdateCard" Header="Check for updates" Icon="ArrowClockwise">
+                        <views:SettingsCard.Action>
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <ProgressRing
+                                    x:Name="UpdateProgressRing"
+                                    Width="20"
+                                    Height="20"
+                                    IsActive="False"
+                                    Visibility="Collapsed" />
+                                <Button x:Name="UpdateButton" Click="UpdateButton_Click" Content="Check for updates" />
+                            </StackPanel>
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+                    <views:SettingsCard
+                        Description="When the app starts, check GitHub for a newer release and download it in the background. You're asked before it's installed."
+                        Header="Check for updates automatically"
+                        Icon="ArrowClockwise">
+                        <views:SettingsCard.Action>
+                            <ToggleSwitch
+                                x:Name="AutoUpdateSwitch"
+                                AutomationProperties.Name="Check for updates automatically"
+                                Toggled="AutoUpdateSwitch_Toggled" />
                         </views:SettingsCard.Action>
                     </views:SettingsCard>
 

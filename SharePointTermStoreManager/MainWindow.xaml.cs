@@ -240,8 +240,115 @@ public sealed partial class MainWindow : Window
 
     private async void RootGrid_Loaded(object sender, RoutedEventArgs e)
     {
+        if (App.Settings.Data.CheckForUpdatesAtStartup) _ = CheckForUpdatesAtStartupAsync();
         // First run: ask for a site to connect to.
         if (CurrentProfile == null) await EditProfileAsync(null);
+    }
+
+    // ---- Updates -------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Checks GitHub in the background; a newer version is downloaded, then offered. Quiet when up to date or
+    /// offline: a failed check shows in Settings › About, not as an error over the term store.
+    /// </summary>
+    private async Task CheckForUpdatesAtStartupAsync()
+    {
+        UpdateInfo? update;
+        try
+        {
+            update = await UpdateService.CheckAndDownloadAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Update check failed: {ex.Message}");
+            return;
+        }
+        if (update != null) await OfferUpdateAsync(update, fromStartup: true);
+    }
+
+    /// <summary>
+    /// Asks whether to install a downloaded update now. Installing replaces the .exe the app runs from and
+    /// restarts it; unsaved changes in the details pane are offered for saving first.
+    /// </summary>
+    public async Task OfferUpdateAsync(UpdateInfo update, bool fromStartup = false)
+    {
+        string version = update.Version.ToString(3);
+        var content = new StackPanel { Spacing = 12 };
+        content.Children.Add(new TextBlock
+        {
+            Text = $"Version {version} has been downloaded (you have {UpdateService.CurrentVersion.ToString(3)}). " +
+                   "The app will close, replace its .exe with the new version and start again.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        if (!string.IsNullOrWhiteSpace(update.Notes))
+        {
+            content.Children.Add(new TextBlock { Text = "What's new", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
+            content.Children.Add(new ScrollViewer
+            {
+                MaxHeight = 220,
+                Content = new TextBlock { Text = update.Notes.Trim(), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true },
+            });
+        }
+        content.Children.Add(new HyperlinkButton
+        {
+            Content = "View the release on GitHub",
+            NavigateUri = new Uri(update.ReleaseUrl),
+            Padding = new Thickness(0),
+        });
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            RequestedTheme = DialogTheme,
+            Title = $"Update to version {version}?",
+            Content = content,
+            PrimaryButtonText = "Restart and update",
+            CloseButtonText = "Later",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        ContentDialogResult result;
+        try
+        {
+            result = await dialog.ShowAsync();
+        }
+        catch (Exception)
+        {
+            // Another dialog is open (e.g. the first-run profile dialog): leave a note instead of interrupting it.
+            if (fromStartup)
+                ShowStatus($"Version {version} is ready to install. Go to Settings › About to update.", InfoBarSeverity.Informational);
+            return;
+        }
+        if (result != ContentDialogResult.Primary) return;
+        await InstallUpdateAsync(update);
+    }
+
+    private async Task InstallUpdateAsync(UpdateInfo update)
+    {
+        if (_busy)
+        {
+            ShowStatus("Wait for the current change to finish, then install the update.", InfoBarSeverity.Warning);
+            return;
+        }
+        if (!await ConfirmLeaveAsync()) return;
+
+        try
+        {
+            if (!UpdateService.Install(update))
+            {
+                ShowStatus("The update wasn't installed: Windows needs administrator permission to replace the app in its folder.", InfoBarSeverity.Warning);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError("Couldn't install the update", ex);
+            return;
+        }
+
+        // The new version has started; close this one without asking again.
+        _closeConfirmed = true;
+        Application.Current.Exit();
     }
 
     // ---- Navigation ----------------------------------------------------------------------------------------
