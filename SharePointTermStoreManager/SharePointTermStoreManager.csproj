@@ -23,7 +23,7 @@
     <EnableMsixTooling>true</EnableMsixTooling>
 
     <!-- Release tags on GitHub are "v" + this (e.g. v0.2.0); the in-app update check compares the two. -->
-    <Version>0.2.0</Version>
+    <Version>1.2.0</Version>
     <Product>SharePoint Term Store Manager</Product>
     <AssemblyTitle>SharePoint Term Store Manager</AssemblyTitle>
     <Description>A WinUI 3 client for managing the SharePoint Online term store.</Description>

@@ -125,7 +125,7 @@
 
                     <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Term tree" />
                     <views:SettingsCard
-                        Description="How many items the tree shows when you expand a term group, term set or term. If there are more, a “Show more” row at the end shows the next set. Smaller numbers keep large term sets quick to open; use search to go straight to an item. 0 shows everything. Applies to items expanded from now on."
+                        Description="How many items the tree shows when you expand a term group, term set or term. If there are more, a “Show more” row at the end shows the next set. Smaller numbers keep large term sets quick to open; use search to go straight to an item, which shows just the set of items around it (with “Show earlier” above). 0 shows everything. Applies to items expanded from now on."
                         Header="Items shown at a time"
                         Icon="TextBulletListLtr">
                         <views:SettingsCard.Action>

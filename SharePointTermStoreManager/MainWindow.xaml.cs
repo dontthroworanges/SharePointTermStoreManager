@@ -835,8 +835,9 @@ public sealed partial class MainWindow : Window
         if (args.InvokedItem is not TermNode node) return;
         if (node.IsMoreItem)
         {
-            // "Show more": the next page of children, keeping the selection on the item being edited.
-            node.Parent?.ShowMore();
+            // "Show earlier" / "Show more": the adjacent page of children, keeping the selection on the item being edited.
+            if (node.IsEarlierItem) node.Parent?.ShowEarlier();
+            else node.Parent?.ShowMore();
             TrySelectInTree(_selected);
             return;
         }
@@ -1796,7 +1797,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Inserts a new node among its siblings in the order the tree uses.</summary>
     /// <remarks>
     /// Under a parent, the position is among all its loaded children; if that's in the part the tree doesn't
-    /// show yet, it shows more of them so the new item is visible.
+    /// show, it shows the page around the new item so it's visible.
     /// </remarks>
     private void InsertSorted(TermNode node)
     {
@@ -2020,11 +2021,12 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Scrolls the tree so the node's row is in the middle of the card (as far as the list allows near its top
     /// and bottom), rather than just inside the bottom edge. Waits briefly for the tree to create the row, which
-    /// it does after the parents expand.
+    /// it does after the parents expand. The tree only creates rows near the visible part of the list, so a row
+    /// further down is scrolled to through the tree's inner list first.
     /// </summary>
     private async Task ScrollToMiddleAsync(TermNode node)
     {
-        for (int attempt = 0; attempt < 10; attempt++)
+        for (int attempt = 0; attempt < 20; attempt++)
         {
             await Task.Delay(50);
             if (Tree.ContainerFromItem(node) is TreeViewItem row)
@@ -2032,7 +2034,26 @@ public sealed partial class MainWindow : Window
                 row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = true });
                 return;
             }
+            try
+            {
+                FindDescendant<ListViewBase>(Tree)?.ScrollIntoView(node);
+            }
+            catch (Exception)
+            {
+                // Not in the tree's list yet (its parents are still expanding); try again.
+            }
         }
+    }
+
+    private static T? FindDescendant<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            if (FindDescendant<T>(child) is { } found) return found;
+        }
+        return null;
     }
 
     /// <summary>Loads and expands the item's group, term set and parent terms, and returns its node.</summary>
@@ -2067,20 +2088,23 @@ public sealed partial class MainWindow : Window
         return found;
     }
 
-    /// <summary>A loaded child of <paramref name="parent"/>, shown in the tree (showing more of the list if it was in the hidden part).</summary>
+    /// <summary>
+    /// A loaded child of <paramref name="parent"/>, shown in the tree: if it was hidden, the tree shows the page
+    /// around it instead of everything before it.
+    /// </summary>
     private static TermNode? FindChild(TermNode parent, Func<TermNode, bool> match)
     {
         var child = parent.LoadedChildren.FirstOrDefault(match);
-        if (child != null && parent.HiddenChildren.Contains(child)) parent.ShowMore(child);
+        if (child != null) parent.ShowPageOf(child);
         return child;
     }
 
-    /// <summary>Expands the node's ancestors and shows any part of a list it's in that the tree had hidden.</summary>
+    /// <summary>Expands the node's ancestors, showing the page around it (and around each ancestor) where hidden.</summary>
     private static void Reveal(TermNode node)
     {
         for (var child = node; child.Parent is { } parent; child = parent)
         {
-            if (parent.HiddenChildren.Contains(child)) parent.ShowMore(child);
+            parent.ShowPageOf(child);
             parent.IsExpanded = true;
         }
     }

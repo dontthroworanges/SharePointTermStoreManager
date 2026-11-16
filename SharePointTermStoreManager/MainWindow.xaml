@@ -264,7 +264,7 @@
                                                 HasUnrealizedChildren="{x:Bind HasUnrealizedChildren, Mode=OneWay}"
                                                 IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
                                                 ItemsSource="{x:Bind Children}">
-                                                <!-- A term store item, or the "Show more" row at the end of a partly shown
+                                                <!-- A term store item, or the "Show earlier" / "Show more" row of a partly shown
                                                      list (see TermNode.ShowMore). -->
                                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                                     <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind h:FluentIcons.MoreHorizontal}" Visibility="{x:Bind MoreIconVisibility}" />
