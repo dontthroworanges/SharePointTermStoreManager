@@ -4,8 +4,11 @@ SharePoint Term Store Manager is an independent project. It is not made, endorse
 
 ## Fluent UI System Icons
 
-`SharePointTermStoreManager/Assets/Fonts/FluentSystemIcons-*.ttf` are from
-[Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) and are used under the MIT License.
+`SharePointTermStoreManager/Assets/Fonts/FluentSystemIcons-*.ttf` and the colour icons
+`SharePointTermStoreManager/Assets/TermIcons/term-set.svg` (Text Bullet List Square), `term-reused.svg` (Link) and
+`term-pinned.svg` (Pin) are from [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons) and are
+used under the MIT License. The other icons in `Assets/TermIcons` were drawn for this app in the same style, using its
+colour gradients.
 Copyright (c) 2020 Microsoft Corporation. The full license text is in
 [FluentSystemIcons-LICENSE.txt](SharePointTermStoreManager/Assets/Fonts/FluentSystemIcons-LICENSE.txt).
 

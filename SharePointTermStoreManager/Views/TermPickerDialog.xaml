@@ -55,8 +55,8 @@
                                 ItemsSource="{x:Bind Children}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Grid>
-                                        <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind Glyph, Mode=OneWay}" Visibility="{x:Bind h:TermIcons.OutlineVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
-                                        <FontIcon FontFamily="{StaticResource FluentIconsFilledFont}" FontSize="16" Foreground="{x:Bind h:TermIcons.Color(Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" Glyph="{x:Bind h:TermIcons.Filled(Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" Visibility="{x:Bind h:TermIcons.ColorVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
+                                        <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind Glyph, Mode=OneWay}" Visibility="{x:Bind h:TermIcons.OutlineVisibility(h:DisplayOptions.Current.UseColorfulIcons), Mode=OneWay}" />
+                                        <Image Width="16" Height="16" Source="{x:Bind h:TermIcons.ColorIcon(Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" Visibility="{x:Bind h:TermIcons.ColorVisibility(h:DisplayOptions.Current.UseColorfulIcons), Mode=OneWay}" />
                                     </Grid>
                                     <TextBlock Opacity="{x:Bind TextOpacity}" Text="{x:Bind Name}" />
                                     <ProgressRing Width="12" Height="12" IsActive="{x:Bind IsLoading, Mode=OneWay}" />
@@ -79,8 +79,8 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid Margin="0,2,0,0" VerticalAlignment="Top">
-                                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind Glyph}" Visibility="{x:Bind h:TermIcons.OutlineVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
-                                    <FontIcon FontFamily="{StaticResource FluentIconsFilledFont}" FontSize="16" Foreground="{x:Bind h:TermIcons.Color(Kind, IsDeprecated, IsReused, IsPinned)}" Glyph="{x:Bind h:TermIcons.Filled(Kind, IsDeprecated, IsReused, IsPinned)}" Visibility="{x:Bind h:TermIcons.ColorVisibility(h:DisplayOptions.Current.UseColorfulIcons, Kind, IsDeprecated, IsReused, IsPinned), Mode=OneWay}" />
+                                    <FontIcon FontFamily="{StaticResource FluentIconsFont}" FontSize="16" Glyph="{x:Bind Glyph}" Visibility="{x:Bind h:TermIcons.OutlineVisibility(h:DisplayOptions.Current.UseColorfulIcons), Mode=OneWay}" />
+                                    <Image Width="16" Height="16" Source="{x:Bind h:TermIcons.ColorIcon(Kind, IsDeprecated, IsReused, IsPinned)}" Visibility="{x:Bind h:TermIcons.ColorVisibility(h:DisplayOptions.Current.UseColorfulIcons), Mode=OneWay}" />
                                 </Grid>
                                 <StackPanel Grid.Column="1" Opacity="{x:Bind TextOpacity}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using SharePointTermStoreManager.Models;
 
 namespace SharePointTermStoreManager.Helpers;
@@ -20,18 +21,14 @@ public sealed partial class DisplayOptions : ObservableObject
 
 /// <summary>
 /// The icon for a term group, term set or term. Outline icons are the regular glyphs in the text colour.
-/// Colourful icons are the filled glyphs, coloured by kind: amber groups, blue term sets, purple reused or pinned
-/// terms and grey deprecated terms; plain terms keep the outline icon (see <see cref="IsColored"/>). Fluent's
-/// full-colour icon set has no folder or tag icons, so filled glyphs in fixed colours stand in for it.
-/// Templates show one of two FontIcons, so the outline one keeps the theme's text colour.
+/// Colourful icons are full-colour SVGs in the style of Fluent's colour icon set (Assets/TermIcons): the
+/// official Text Bullet List Square (term sets), Link (reused terms) and Pin (pinned terms) colour icons, plus a
+/// folder (groups), tag (terms) and slashed grey tag (deprecated terms) drawn in the same style, because Fluent's
+/// colour set has no folder or tag. Templates show either the outline FontIcon or the colour Image, so the
+/// outline one keeps the theme's text colour.
 /// </summary>
 public static class TermIcons
 {
-    private static readonly SolidColorBrush s_group = Brush(0xE8, 0xA3, 0x3D);
-    private static readonly SolidColorBrush s_termSet = Brush(0x2B, 0x88, 0xD8);
-    private static readonly SolidColorBrush s_linked = Brush(0x87, 0x64, 0xB8);
-    private static readonly SolidColorBrush s_deprecated = Brush(0x9A, 0x98, 0x96);
-
     public static string Outline(TermNodeKind kind, bool deprecated, bool reused, bool pinned) => kind switch
     {
         TermNodeKind.Group => FluentIcons.Folder,
@@ -39,32 +36,25 @@ public static class TermIcons
         _ => deprecated ? FluentIcons.TagOff : reused || pinned ? FluentIcons.Link : FluentIcons.Tag,
     };
 
-    public static string Filled(TermNodeKind kind, bool deprecated, bool reused, bool pinned) => kind switch
+    /// <summary>The colour icon; deprecated wins over pinned, and pinned over reused.</summary>
+    public static ImageSource ColorIcon(TermNodeKind kind, bool deprecated, bool reused, bool pinned) => Svg(kind switch
     {
-        TermNodeKind.Group => FluentIcons.FolderFilled,
-        TermNodeKind.TermSet => FluentIcons.GroupListFilled,
-        _ => deprecated ? FluentIcons.TagOffFilled : reused || pinned ? FluentIcons.LinkFilled : FluentIcons.TagFilled,
-    };
+        TermNodeKind.Group => "term-group",
+        TermNodeKind.TermSet => "term-set",
+        _ => deprecated ? "term-deprecated" : pinned ? "term-pinned" : reused ? "term-reused" : "term",
+    });
 
-    public static SolidColorBrush Color(TermNodeKind kind, bool deprecated, bool reused, bool pinned) => kind switch
+    public static Visibility OutlineVisibility(bool colorful) => colorful ? Visibility.Collapsed : Visibility.Visible;
+
+    public static Visibility ColorVisibility(bool colorful) => colorful ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>One shared image source per icon (they're only created on the UI thread, by bindings).</summary>
+    private static readonly Dictionary<string, SvgImageSource> s_icons = new();
+
+    private static SvgImageSource Svg(string name)
     {
-        TermNodeKind.Group => s_group,
-        TermNodeKind.TermSet => s_termSet,
-        _ => deprecated ? s_deprecated : s_linked, // plain terms aren't coloured (see IsColored)
-    };
-
-    /// <summary>
-    /// True when the item gets a coloured icon. Plain terms keep their outline icon in colourful mode too; only
-    /// groups, term sets and reused, pinned or deprecated terms are coloured.
-    /// </summary>
-    public static bool IsColored(bool colorful, TermNodeKind kind, bool deprecated, bool reused, bool pinned) =>
-        colorful && (kind != TermNodeKind.Term || deprecated || reused || pinned);
-
-    public static Visibility OutlineVisibility(bool colorful, TermNodeKind kind, bool deprecated, bool reused, bool pinned) =>
-        IsColored(colorful, kind, deprecated, reused, pinned) ? Visibility.Collapsed : Visibility.Visible;
-
-    public static Visibility ColorVisibility(bool colorful, TermNodeKind kind, bool deprecated, bool reused, bool pinned) =>
-        IsColored(colorful, kind, deprecated, reused, pinned) ? Visibility.Visible : Visibility.Collapsed;
-
-    private static SolidColorBrush Brush(byte r, byte g, byte b) => new(Windows.UI.Color.FromArgb(0xFF, r, g, b));
+        if (!s_icons.TryGetValue(name, out var source))
+            s_icons[name] = source = new SvgImageSource(new Uri($"ms-appx:///Assets/TermIcons/{name}.svg"));
+        return source;
+    }
 }

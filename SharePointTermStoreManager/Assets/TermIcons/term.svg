@@ -1,0 +1,21 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Tag in the Fluent colour style (no tag in Fluent's colour set): body, a soft highlight, and the hole. -->
+<path d="M9.12132 1.5H13C13.8284 1.5 14.5 2.17157 14.5 3V6.87868C14.5 7.27651 14.342 7.65804 14.0607 7.93934L8.56066 13.4393C7.97487 14.0251 7.02513 14.0251 6.43934 13.4393L2.56066 9.56066C1.97487 8.97487 1.97487 8.02513 2.56066 7.43934L8.06066 1.93934C8.34196 1.65804 8.72349 1.5 9.12132 1.5Z" fill="url(#term_body)"/>
+<path d="M9.12132 1.5H13C13.8284 1.5 14.5 2.17157 14.5 3V6.87868C14.5 7.27651 14.342 7.65804 14.0607 7.93934L8.56066 13.4393C7.97487 14.0251 7.02513 14.0251 6.43934 13.4393L2.56066 9.56066C1.97487 8.97487 1.97487 8.02513 2.56066 7.43934L8.06066 1.93934C8.34196 1.65804 8.72349 1.5 9.12132 1.5Z" fill="url(#term_glow)" fill-opacity="0.6"/>
+<circle cx="11.25" cy="4.75" r="1.25" fill="url(#term_hole)"/>
+<defs>
+<linearGradient id="term_body" x1="13.5" y1="1.5" x2="4.5" y2="13" gradientUnits="userSpaceOnUse">
+<stop stop-color="#BB45EA"/>
+<stop offset="0.45" stop-color="#9C6CFE"/>
+<stop offset="1" stop-color="#5750E2"/>
+</linearGradient>
+<radialGradient id="term_glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(4 10.5) rotate(-45) scale(5 7)">
+<stop stop-color="#E362F8"/>
+<stop offset="1" stop-color="#9966FF" stop-opacity="0"/>
+</radialGradient>
+<linearGradient id="term_hole" x1="10" y1="3.5" x2="12.5" y2="6" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="#E5D9FF"/>
+</linearGradient>
+</defs>
+</svg>

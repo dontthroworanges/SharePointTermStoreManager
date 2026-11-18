@@ -1,0 +1,16 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Folder in the Fluent colour style (no folder in Fluent's colour set): back with tab, then the front. -->
+<path d="M1.5 4C1.5 3.17157 2.17157 2.5 3 2.5H5.87868C6.27651 2.5 6.65804 2.65804 6.93934 2.93934L8 4H13C13.8284 4 14.5 4.67157 14.5 5.5V12C14.5 12.8284 13.8284 13.5 13 13.5H3C2.17157 13.5 1.5 12.8284 1.5 12V4Z" fill="url(#group_back)"/>
+<path d="M1.5 7C1.5 6.17157 2.17157 5.5 3 5.5H13C13.8284 5.5 14.5 6.17157 14.5 7V12C14.5 12.8284 13.8284 13.5 13 13.5H3C2.17157 13.5 1.5 12.8284 1.5 12V7Z" fill="url(#group_front)"/>
+<defs>
+<linearGradient id="group_back" x1="3" y1="2.5" x2="3" y2="8" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FAB500"/>
+<stop offset="1" stop-color="#CA6407"/>
+</linearGradient>
+<linearGradient id="group_front" x1="5" y1="5.5" x2="5" y2="16.5" gradientUnits="userSpaceOnUse">
+<stop offset="0.240824" stop-color="#FFD638"/>
+<stop offset="0.637257" stop-color="#FAB500"/>
+<stop offset="0.98516" stop-color="#CA6407"/>
+</linearGradient>
+</defs>
+</svg>

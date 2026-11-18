@@ -230,7 +230,7 @@
 
                     <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Icons" />
                     <views:SettingsCard
-                        Description="Outline icons match the rest of the app. Colourful icons colour term groups (amber), term sets (blue), and reused or pinned (purple) and deprecated (grey) terms; other terms keep their outline icon."
+                        Description="Outline icons match the rest of the app. Colourful icons use the style of Fluent's colour icons: amber folders for term groups, blue lists for term sets, purple tags for terms, a link for reused terms, a pin for pinned terms and a grey slashed tag for deprecated terms."
                         Header="Term store icons"
                         Icon="Icons">
                         <views:SettingsCard.Action>
