@@ -53,7 +53,8 @@ public sealed partial class TermPickerDialog : ContentDialog
         SearchRow.Visibility = canSearch ? Visibility.Visible : Visibility.Collapsed;
         ScopeBox.Items.Add("Whole term store");
         if (options.ScopeTermSet is { } scope) ScopeBox.Items.Add($"In “{scope.Name}”");
-        ScopeBox.SelectedIndex = ScopeBox.Items.Count - 1;
+        // Start in the term set unless Settings says to search the whole term store first.
+        ScopeBox.SelectedIndex = App.Settings.Data.PickerSearchScope == PickerScopes.WholeStore ? 0 : ScopeBox.Items.Count - 1;
         ScopeBox.Visibility = ScopeBox.Items.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
 
         Opened += async (_, _) =>
@@ -101,7 +102,8 @@ public sealed partial class TermPickerDialog : ContentDialog
             node.Children.Clear();
             foreach (var child in children)
             {
-                if (child.Kind == _options.Deepest) child.HasUnrealizedChildren = false;
+                // Stop at the deepest level asked for, but terms nest under terms, so a term still opens to its child terms.
+                if (child.Kind == _options.Deepest && child.Kind != TermNodeKind.Term) child.HasUnrealizedChildren = false;
                 node.Children.Add(child);
             }
             node.HasUnrealizedChildren = false;
@@ -153,7 +155,7 @@ public sealed partial class TermPickerDialog : ContentDialog
             var results = await App.TermStore.SearchTermsAsync(_profile, text, scope, ct: cts.Token);
             if (cts.IsCancellationRequested) return;
             ResultsList.ItemsSource = results;
-            EmptyText.Text = results.Count == 0 ? $"No terms have a label starting with “{text}”." : "";
+            EmptyText.Text = results.Count == 0 ? $"No term names or synonyms start with “{text}”." : "";
         }
         catch (OperationCanceledException)
         {

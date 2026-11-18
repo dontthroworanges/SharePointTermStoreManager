@@ -47,6 +47,7 @@ public sealed partial class SettingsView : UserControl
         TimeoutBox.Value = data.NotificationTimeoutSeconds;
         TreePageSizeBox.Value = data.TreePageSize;
         ShowDeleteSwitch.IsOn = data.ShowDeleteInDetailsPane;
+        PickerScopeBox.SelectedIndex = data.PickerSearchScope == PickerScopes.WholeStore ? 1 : 0;
         ThemeBox.SelectedIndex = data.Theme switch { "Light" => 1, "Dark" => 2, _ => 0 };
         LoadAccentColor();
         IconStyleBox.SelectedIndex = data.UseColorfulIcons ? 1 : 0;
@@ -166,6 +167,13 @@ public sealed partial class SettingsView : UserControl
         App.Settings.Data.ShowDeleteInDetailsPane = ShowDeleteSwitch.IsOn;
         App.Settings.Save();
         App.MainWindow.RefreshEditorCommands();
+    }
+
+    private void PickerScopeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || PickerScopeBox.SelectedItem is not ComboBoxItem { Tag: string scope }) return;
+        App.Settings.Data.PickerSearchScope = scope;
+        App.Settings.Save();
     }
 
     private async void OpenLogFolder_Click(object sender, RoutedEventArgs e)

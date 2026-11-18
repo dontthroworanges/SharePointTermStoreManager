@@ -785,6 +785,7 @@ public sealed partial class MainWindow : Window
             foreach (var group in store.Groups) Roots.Add(group);
             _storeLoaded = true;
             App.Settings.SaveProfile(profile); // the signed-in account may have changed
+            App.TermStore.PrepareSynonymSearch(profile); // read synonyms in the background, so searching them is quick
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
@@ -1786,7 +1787,7 @@ public sealed partial class MainWindow : Window
 
         GlobalSearchBox.IsEnabled = GlobalSearchButton.IsEnabled = _storeLoaded;
         GlobalSearchBox.PlaceholderText = _storeLoaded
-            ? "Search terms (label or synonym starts with), term sets and groups, or paste an ID"
+            ? "Search terms (name or synonym starts with), term sets and groups, or paste an ID"
             : "Connect to search terms, term sets and groups";
 
         ExportView.UpdateState(_storeLoaded, Roots);
@@ -1914,7 +1915,7 @@ public sealed partial class MainWindow : Window
         }
         var results = await UpdateSuggestionsAsync(delay: false);
         if (results == null) return;
-        var exact = results.Where(r => string.Equals(r.Name, text, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        var exact = results.Where(r => string.Equals(r.MatchedSynonym ?? r.Name, text, StringComparison.CurrentCultureIgnoreCase)).ToList();
         if (results.Count == 1) await RevealAsync(results[0]);
         else if (exact.Count == 1) await RevealAsync(exact[0]);
         else if (results.Count == 0 && Guid.TryParse(text, out var id))
@@ -1925,7 +1926,7 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// Fills the search box's list: term groups and loaded term sets whose name contains the text, term sets
-    /// named exactly the text, and terms with a label or synonym starting with it (CSOM can't search term set
+    /// named exactly the text, and terms whose name or a synonym starts with it (CSOM can't search term set
     /// names or labels by "contains"). Returns null when superseded or failed.
     /// </summary>
     private async Task<IReadOnlyList<ItemRef>?> UpdateSuggestionsAsync(bool delay)

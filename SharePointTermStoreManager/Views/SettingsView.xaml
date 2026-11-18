@@ -143,6 +143,23 @@
                         </views:SettingsCard.Action>
                     </views:SettingsCard>
 
+                    <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Search" />
+                    <views:SettingsCard
+                        Description="Where the search box looks first when you choose where to move, merge, reuse or pin a term. “Current term set” searches the term set of the term you're working on; “Whole term store” searches every term set. You can still change it in the dialog each time."
+                        Header="Search scope when choosing a term"
+                        Icon="Search">
+                        <views:SettingsCard.Action>
+                            <ComboBox
+                                x:Name="PickerScopeBox"
+                                MinWidth="200"
+                                AutomationProperties.Name="Search scope when choosing a term"
+                                SelectionChanged="PickerScopeBox_SelectionChanged">
+                                <ComboBoxItem Content="Current term set" Tag="TermSet" />
+                                <ComboBoxItem Content="Whole term store" Tag="WholeStore" />
+                            </ComboBox>
+                        </views:SettingsCard.Action>
+                    </views:SettingsCard>
+
                     <TextBlock Style="{StaticResource GroupHeaderStyle}" Text="Details pane" />
                     <views:SettingsCard
                         Description="Show Delete in the details pane's command bar. Turn it off to keep Delete out of easy reach: items can then only be deleted from the term tree's right-click menu (or the Delete key in the tree)."

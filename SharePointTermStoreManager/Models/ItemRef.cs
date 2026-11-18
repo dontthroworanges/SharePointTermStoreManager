@@ -21,6 +21,10 @@ public sealed record ItemRef(TermNodeKind Kind, Guid Id, Guid? TermSetId, string
     public Guid? GroupId { get; init; }
     public IReadOnlyList<string> ParentLabels { get; init; } = [];
 
+    /// <summary>For search results found by a synonym: the synonym that matched, shown next to the name.</summary>
+    [JsonIgnore]
+    public string? MatchedSynonym { get; init; }
+
     [JsonIgnore]
     public bool IsPinnedCopy => Kind == TermNodeKind.Term && IsPinned && !IsSourceTerm;
 
@@ -34,6 +38,7 @@ public sealed record ItemRef(TermNodeKind Kind, Guid Id, Guid? TermSetId, string
     [JsonIgnore]
     public string Badges => string.Join(" · ", new[]
     {
+        MatchedSynonym != null ? $"Synonym: {MatchedSynonym}" : null,
         IsDeprecated ? "Deprecated" : null,
         IsPinnedCopy ? "Pinned copy" : IsReused ? "Reused" : null,
     }.Where(b => b != null));

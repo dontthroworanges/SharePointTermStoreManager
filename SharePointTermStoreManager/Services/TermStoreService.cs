@@ -522,6 +522,7 @@ public sealed class TermStoreService(AuthService auth)
         store.CommitAll();
         ctx.Load(created, c => c.Name); // as SharePoint stored it
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
 
         return new TermNode
         {
@@ -596,6 +597,7 @@ public sealed class TermStoreService(AuthService auth)
 
         store.CommitAll();
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
     }
 
     /// <summary>
@@ -630,6 +632,7 @@ public sealed class TermStoreService(AuthService auth)
 
         store.CommitAll();
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
     }
 
     private static void EnsureUnchanged(TermNode node, NodeDetails original, DateTime lastModified)
@@ -708,11 +711,69 @@ public sealed class TermStoreService(AuthService auth)
     // ---- Searching -----------------------------------------------------------------------------------------
 
     /// <summary>
-    /// Terms with a label (default label or synonym) starting with <paramref name="text"/>, in one term set or the
-    /// whole term store. CSOM label search only supports "starts with" and exact matches.
+    /// Terms whose name (default label) or a synonym starts with <paramref name="text"/>, in one term set or the
+    /// whole term store. A term found only by a synonym has <see cref="ItemRef.MatchedSynonym"/> set.
+    ///
+    /// SharePoint's label search is limited: the term store's search does "starts with" on names only (asking for
+    /// synonyms too fails with "labelMatchInformation.DefaultLabelOnly"), and a term set's search rejects "starts
+    /// with" altogether, with the same error. So:
+    /// <list type="bullet">
+    /// <item>In one term set, names and synonyms are both matched in the term index this app reads per term set
+    /// (see <see cref="GetTermIndex"/>).</item>
+    /// <item>In the whole term store, names come from SharePoint's search, always current, and synonyms from the
+    /// term index of every term set.</item>
+    /// </list>
     /// </summary>
     public async Task<IReadOnlyList<ItemRef>> SearchTermsAsync(
         ConnectionProfile profile, string text, Guid? termSetId, int maxResults = 100, CancellationToken ct = default)
+    {
+        IEnumerable<ItemRef> results;
+        if (termSetId is { } id)
+        {
+            var index = await GetTermIndex(profile, id).WaitAsync(ct);
+            results = MatchIndex(index, text, matchNames: true);
+        }
+        else
+        {
+            var namesTask = SearchStoreNamesAsync(profile, text, maxResults, ct);
+            var synonymsTask = SearchStoreSynonymsAsync(profile, text, ct);
+            await Task.WhenAll(namesTask, synonymsTask);
+            ct.ThrowIfCancellationRequested();
+
+            var byName = namesTask.Result;
+            var found = byName.Select(r => (r.Id, r.TermSetId)).ToHashSet();
+            results = byName.Concat(synonymsTask.Result.Where(r => found.Add((r.Id, r.TermSetId))));
+        }
+
+        return results
+            .OrderBy(r => r.MatchedSynonym ?? r.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(r => r.Path, StringComparer.CurrentCultureIgnoreCase)
+            .Take(maxResults)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The terms in an index whose synonym (or, with <paramref name="matchNames"/>, name) starts with
+    /// <paramref name="text"/>. A name match wins over a synonym match, so the synonym is only shown when it's
+    /// why the term was found.
+    /// </summary>
+    private static IEnumerable<ItemRef> MatchIndex(IEnumerable<TermIndexEntry> index, string text, bool matchNames)
+    {
+        foreach (var entry in index)
+        {
+            if (matchNames && entry.Term.Name.StartsWith(text, StringComparison.CurrentCultureIgnoreCase))
+            {
+                yield return entry.Term;
+                continue;
+            }
+            var synonym = entry.Synonyms.FirstOrDefault(s => s.StartsWith(text, StringComparison.CurrentCultureIgnoreCase));
+            if (synonym != null) yield return entry.Term with { MatchedSynonym = synonym };
+        }
+    }
+
+    /// <summary>Terms anywhere in the term store whose name (default label) starts with <paramref name="text"/>, from SharePoint's search.</summary>
+    private async Task<IReadOnlyList<ItemRef>> SearchStoreNamesAsync(
+        ConnectionProfile profile, string text, int maxResults, CancellationToken ct)
     {
         using var ctx = await CreateContextAsync(profile, ct);
         var store = GetStore(ctx);
@@ -724,21 +785,169 @@ public sealed class TermStoreService(AuthService auth)
             StringMatchOption = StringMatchOption.StartsWith,
             ResultCollectionSize = maxResults,
             Lcid = lcid,
-            DefaultLabelOnly = false,
+            DefaultLabelOnly = true, // SharePoint requires this for "starts with"
             TrimDeprecated = false,
             TrimUnavailable = false,
             ExcludeKeyword = false,
         };
-        var terms = termSetId is { } id ? store.GetTermSet(id).GetTerms(match) : store.GetTerms(match);
+        var terms = store.GetTerms(match);
         ctx.Load(terms, c => c.Include(TermRefFields));
         await ctx.ExecuteQueryAsync();
         ct.ThrowIfCancellationRequested();
+        return terms.AsEnumerable().Select(TermRef).ToList();
+    }
 
-        return terms.AsEnumerable()
-            .Select(TermRef)
-            .OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(r => r.Path, StringComparer.CurrentCultureIgnoreCase)
+    /// <summary>
+    /// Terms with a synonym (a label other than the name, in the term store's default language) starting with
+    /// <paramref name="text"/>, from the term index of every term set outside the system groups (which hold
+    /// keywords and hashtags, not managed terms).
+    /// </summary>
+    private async Task<IReadOnlyList<ItemRef>> SearchStoreSynonymsAsync(ConnectionProfile profile, string text, CancellationToken ct)
+    {
+        var termSetIds = await GetSearchableTermSets(profile).WaitAsync(ct);
+        var indexes = await Task.WhenAll(termSetIds.Select(t => GetTermIndex(profile, t))).WaitAsync(ct);
+        return MatchIndex(indexes.SelectMany(i => i), text, matchNames: false).ToList();
+    }
+
+    // ---- Term index ----------------------------------------------------------------------------------------
+
+    /// <summary>A term and its synonyms, for searching names and synonyms by "starts with".</summary>
+    private sealed record TermIndexEntry(ItemRef Term, string[] Synonyms);
+
+    /// <summary>
+    /// How long an index is used before it's read again, to pick up changes made outside this app. Changes made
+    /// in this app clear it straight away (<see cref="ForgetSynonyms"/>).
+    /// </summary>
+    private static readonly TimeSpan SynonymIndexLifetime = TimeSpan.FromMinutes(10);
+
+    private readonly object _indexLock = new();
+
+    /// <summary>By profile ID, then term set ID: the term set's term index (being read, or read at the time).</summary>
+    private readonly Dictionary<string, Dictionary<Guid, (Task<IReadOnlyList<TermIndexEntry>> Task, DateTime Read)>> _synonymIndexes = new();
+
+    /// <summary>By profile ID: the term sets a whole-term-store synonym search looks in.</summary>
+    private readonly Dictionary<string, (Task<IReadOnlyList<Guid>> Task, DateTime Read)> _searchableTermSets = new();
+
+    /// <summary>Limits how many term sets are read at once, so a first whole-store search doesn't flood SharePoint.</summary>
+    private readonly SemaphoreSlim _indexReads = new(4);
+
+    /// <summary>A cached task is reused while it's young enough and hasn't failed.</summary>
+    private static bool IsFresh(Task task, DateTime read) =>
+        !task.IsFaulted && !task.IsCanceled && DateTime.UtcNow - read < SynonymIndexLifetime;
+
+    /// <summary>
+    /// Every term in a term set, with its synonyms. Read once (all levels in one request,
+    /// <see cref="TermSet.GetAllTerms"/>) and shared by searches until it expires or is forgotten. Reads aren't
+    /// cancelled by the search that started them, since the next search wants the same index.
+    /// </summary>
+    private Task<IReadOnlyList<TermIndexEntry>> GetTermIndex(ConnectionProfile profile, Guid termSetId)
+    {
+        lock (_indexLock)
+        {
+            if (!_synonymIndexes.TryGetValue(profile.Id, out var byTermSet))
+                _synonymIndexes[profile.Id] = byTermSet = new();
+            if (byTermSet.TryGetValue(termSetId, out var cached) && IsFresh(cached.Task, cached.Read)) return cached.Task;
+
+            var task = ReadTermIndexAsync(profile, termSetId);
+            byTermSet[termSetId] = (task, DateTime.UtcNow);
+            return task;
+        }
+    }
+
+    private async Task<IReadOnlyList<TermIndexEntry>> ReadTermIndexAsync(ConnectionProfile profile, Guid termSetId)
+    {
+        await _indexReads.WaitAsync();
+        try
+        {
+            using var ctx = await CreateContextAsync(profile, CancellationToken.None);
+            var store = GetStore(ctx);
+            int lcid = await GetLanguageAsync(profile, ctx, store);
+            var termSet = store.GetTermSet(termSetId);
+            ctx.Load(termSet, t => t.Id, t => t.Name, t => t.Group.Id, t => t.Group.Name);
+            var terms = termSet.GetAllTerms();
+            ctx.Load(terms, c => c.Include(
+                t => t.Id, t => t.Name, t => t.PathOfTerm,
+                t => t.IsDeprecated, t => t.IsReused, t => t.IsPinned, t => t.IsSourceTerm, t => t.TermsCount,
+                t => t.Labels.Include(l => l.Value, l => l.Language, l => l.IsDefaultForLanguage)));
+            await ctx.ExecuteQueryAsync();
+
+            var entries = new List<TermIndexEntry>();
+            foreach (var term in terms)
+            {
+                var synonyms = term.Labels
+                    .Where(l => l.Language == lcid && !l.IsDefaultForLanguage)
+                    .Select(l => l.Value)
+                    .ToArray();
+                entries.Add(new TermIndexEntry(
+                    TermRef(term, termSet.Id, termSet.Name, termSet.Group.Id, termSet.Group.Name), synonyms));
+            }
+            return entries;
+        }
+        finally
+        {
+            _indexReads.Release();
+        }
+    }
+
+    /// <summary>The term sets outside system groups, which a whole-term-store synonym search looks in.</summary>
+    private Task<IReadOnlyList<Guid>> GetSearchableTermSets(ConnectionProfile profile)
+    {
+        lock (_indexLock)
+        {
+            if (_searchableTermSets.TryGetValue(profile.Id, out var cached) && IsFresh(cached.Task, cached.Read)) return cached.Task;
+            var task = ReadSearchableTermSetsAsync(profile);
+            _searchableTermSets[profile.Id] = (task, DateTime.UtcNow);
+            return task;
+        }
+    }
+
+    private async Task<IReadOnlyList<Guid>> ReadSearchableTermSetsAsync(ConnectionProfile profile)
+    {
+        using var ctx = await CreateContextAsync(profile, CancellationToken.None);
+        var groups = GetStore(ctx).Groups;
+        ctx.Load(groups, c => c.Include(g => g.IsSystemGroup, g => g.TermSets.Include(t => t.Id)));
+        await ctx.ExecuteQueryAsync();
+        return groups.AsEnumerable()
+            .Where(g => !g.IsSystemGroup)
+            .SelectMany(g => g.TermSets.AsEnumerable().Select(t => t.Id))
             .ToList();
+    }
+
+    /// <summary>
+    /// Reads the term index of every searchable term set in the background, after forgetting any already read
+    /// (so loading or refreshing the term store also picks up changes made outside this app). Failures are left
+    /// for the next search to retry and report.
+    /// </summary>
+    public void PrepareSynonymSearch(ConnectionProfile profile)
+    {
+        ForgetSynonyms(profile);
+        _ = WarmAsync();
+
+        async Task WarmAsync()
+        {
+            try
+            {
+                var termSetIds = await GetSearchableTermSets(profile);
+                await Task.WhenAll(termSetIds.Select(t => GetTermIndex(profile, t)));
+            }
+            catch
+            {
+                // A failed read isn't cached (IsFresh), so the next search tries again and shows the error.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Forgets a profile's term indexes after a change, so the next search reads them again. All of them, not
+    /// just the changed term set's: a reused term's synonyms show in every term set it's reused in.
+    /// </summary>
+    private void ForgetSynonyms(ConnectionProfile profile)
+    {
+        lock (_indexLock)
+        {
+            _synonymIndexes.Remove(profile.Id);
+            _searchableTermSets.Remove(profile.Id);
+        }
     }
 
     /// <summary>
@@ -802,20 +1011,27 @@ public sealed class TermStoreService(AuthService auth)
     ];
 
     /// <summary>A search result for a term loaded with <see cref="TermRefFields"/>.</summary>
-    private static ItemRef TermRef(Term t)
+    private static ItemRef TermRef(Term t) =>
+        TermRef(t, t.TermSet.Id, t.TermSet.Name, t.TermSet.Group.Id, t.TermSet.Group.Name);
+
+    /// <summary>
+    /// A search result for a term in a known term set: the term needs <see cref="TermRefFields"/> other than its
+    /// term set and group.
+    /// </summary>
+    private static ItemRef TermRef(Term t, Guid termSetId, string termSetName, Guid groupId, string groupName)
     {
         // PathOfTerm is the default labels from the top of the term set down to the term, ";"-separated.
         var labels = (t.PathOfTerm ?? t.Name).Split(';', StringSplitOptions.RemoveEmptyEntries);
         return new ItemRef(
-            TermNodeKind.Term, t.Id, t.TermSet.Id, t.Name,
-            string.Join(" › ", new[] { t.TermSet.Group.Name, t.TermSet.Name }.Concat(labels)))
+            TermNodeKind.Term, t.Id, termSetId, t.Name,
+            string.Join(" › ", new[] { groupName, termSetName }.Concat(labels)))
         {
             IsDeprecated = t.IsDeprecated,
             IsReused = t.IsReused,
             IsPinned = t.IsPinned,
             IsSourceTerm = t.IsSourceTerm,
             ChildTermCount = t.TermsCount,
-            GroupId = t.TermSet.Group.Id,
+            GroupId = groupId,
             ParentLabels = labels.Length > 1 ? labels[..^1] : [],
         };
     }
@@ -848,6 +1064,7 @@ public sealed class TermStoreService(AuthService auth)
         store.CommitAll();
         ctx.Load(t, x => x.IsDeprecated);
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
         return t.IsDeprecated;
     }
 
@@ -880,6 +1097,7 @@ public sealed class TermStoreService(AuthService auth)
         from.Merge(into);
         store.CommitAll();
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
     }
 
     /// <summary>Moves a term (with everything below it) into a term set or under another term.</summary>
@@ -911,6 +1129,7 @@ public sealed class TermStoreService(AuthService auth)
         t.Move(destination);
         store.CommitAll();
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
     }
 
     /// <summary>Moves a term set, with all its terms, to another term group.</summary>
@@ -922,6 +1141,7 @@ public sealed class TermStoreService(AuthService auth)
         store.GetTermSet(termSet.Id).Move(store.GetGroup(group.Id));
         store.CommitAll();
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
     }
 
     /// <summary>
@@ -938,6 +1158,7 @@ public sealed class TermStoreService(AuthService auth)
         ctx.Load(copy, t => t.Id, t => t.Name, t => t.Description, t => t.IsDeprecated, t => t.IsReused,
             t => t.IsPinned, t => t.IsSourceTerm, t => t.TermsCount);
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
 
         return new TermNode
         {
@@ -978,6 +1199,7 @@ public sealed class TermStoreService(AuthService auth)
         else target.ReuseTerm(term, includeChildren);
         store.CommitAll();
         await ctx.ExecuteQueryAsync();
+        ForgetSynonyms(profile);
     }
 
     // ---- Plumbing ------------------------------------------------------------------------------------------

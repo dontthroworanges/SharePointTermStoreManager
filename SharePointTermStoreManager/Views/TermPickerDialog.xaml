@@ -35,7 +35,7 @@
             <TextBox
                 x:Name="SearchBox"
                 AutomationProperties.Name="Search terms"
-                PlaceholderText="Search labels and synonyms (starts with)…"
+                PlaceholderText="Search names and synonyms (starts with)…"
                 TextChanged="SearchBox_TextChanged" />
             <ComboBox x:Name="ScopeBox" Grid.Column="1" MinWidth="200" AutomationProperties.Name="Search in" SelectionChanged="ScopeBox_SelectionChanged" />
         </Grid>

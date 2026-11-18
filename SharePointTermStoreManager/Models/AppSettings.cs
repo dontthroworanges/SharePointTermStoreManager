@@ -33,6 +33,12 @@ public sealed class AppSettings
     /// </summary>
     public bool ShowDeleteInDetailsPane { get; set; } = true;
 
+    /// <summary>
+    /// Where the search in the Move, Merge and similar pickers looks at first: "TermSet" (the term set of the item
+    /// being moved or merged) or "WholeStore". The picker's scope list can still change it each time.
+    /// </summary>
+    public string PickerSearchScope { get; set; } = PickerScopes.TermSet;
+
     /// <summary>Width of the term tree pane in pixels, as last dragged; 0 for the default 2:3 split with the editor.</summary>
     public double TreePaneWidth { get; set; }
 
@@ -47,4 +53,11 @@ public sealed class AppSettings
     /// it's installed.
     /// </summary>
     public bool CheckForUpdatesAtStartup { get; set; } = true;
+}
+
+/// <summary>Values of <see cref="AppSettings.PickerSearchScope"/>.</summary>
+public static class PickerScopes
+{
+    public const string TermSet = "TermSet";
+    public const string WholeStore = "WholeStore";
 }
